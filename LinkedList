@@ -1,0 +1,271 @@
+LinkedList也和ArrayList一样实现了List接口，但是它执行插入和删除操作时比ArrayList更加高效，因为它是基于链表的。
+基于链表也决定了它在随机访问方面要比ArrayList逊色一点。
+定义：
+public class LinkedList<E>
+    extends AbstractSequentialList<E>   implements List<E>, Deque<E>, Cloneable, java.io.Serializable
+    
+ LinkedList继承自AbstractSequenceList、实现了List及Deque接口。其实AbstractSequenceList已经实现了List接口，这里标注出List只是更加清晰而已。
+ AbstractSequenceList提供了List接口骨干性的实现以减少实现List接口的复杂度。Deque接口定义了双端队列的操作。
+
+LinkedList中之定义了两个属性：
+1 private transient Entry<E> header = new Entry<E>(null, null, null);
+2 private transient int size = 0;
+
+ size肯定就是LinkedList对象里面存储的元素个数了。LinkedList既然是基于链表实现的，那么这个header肯定就是链表的头结点了，Entry就是节点对象。
+ Entry：
+ private static class Entry<E> {
+    E element;
+    Entry<E> next;
+    Entry<E> previous;
+
+    Entry(E element, Entry<E> next, Entry<E> previous) {
+        this.element = element;
+        this.next = next;
+        this.previous = previous;
+    }
+}
+只定义了存储的元素、前一个元素、后一个元素，这就是双向链表的节点的定义，每个节点只知道自己的前一个节点和后一个节点。
+
+
+LinkedList的构造方法：
+public LinkedList() {
+    header.next = header.previous = header;
+}
+
+public LinkedList(Collection<? extends E> c) {
+    this();
+    addAll(c);
+}
+
+ LinkedList提供了两个构造方法。第一个构造方法不接受参数，只是将header节点的前一节点和后一节点都设置为自身（注意，这个是一个双向循环链表，如果不是循环链表，
+ 空链表的情况应该是header节点的前一节点和后一节点均为null），这样整个链表其实就只有header一个节点，用于表示一个空的链表。
+ 第二个构造方法接收一个Collection参数c，调用第一个构造方法构造一个空的链表，之后通过addAll将c中的元素全部添加到链表中
+ 
+ addAll(Collection<? extends E> c)
+ public boolean addAll(Collection<? extends E> c) {
+    return addAll(size, c);
+}
+//index at which to insert the first element from the specified collection. index是插入到list里的断口处
+public boolean addAll(int index, Collection<? extends E> c) {
+        //越界检查
+        checkPositionIndex(index);
+        //转化为数组
+        Object[] a = c.toArray();
+        int numNew = a.length;
+        if (numNew == 0)
+            return false;
+        //定义一个节点，用于存放原list断口处的节点
+        Node<E> pred, succ;
+        //如果从list结尾插入新元素，则（对将要插入的新元素而言）前一个节点是原list的最后一个节点，没有下一个节点
+        if (index == size) {
+            succ = null;
+            pred = last;
+        //如果不是从list结尾插入新元素，则取出（将要插入的新元素）前一个节点和后一个节点
+        } else {
+            succ = node(index);
+            pred = succ.prev;
+        }
+        //循环数组，分别设置前一个节点（链接起来）
+        for (Object o : a) {
+            @SuppressWarnings("unchecked") E e = (E) o;
+            Node<E> newNode = new Node<>(pred, e, null);
+            if (pred == null)
+                first = newNode;
+            else
+                pred.next = newNode;
+            pred = newNode;
+        }
+
+        if (succ == null) {
+            last = pred;
+        } else {
+            pred.next = succ;
+            succ.prev = pred;
+        }
+
+        size += numNew;
+        modCount++;
+        return true;
+    }
+
+其他方法：
+1.linkBefore(E e, Node<E> succ)
+/**
+ * Inserts element e before non-null Node succ.
+ */
+void linkBefore(E e, Node<E> succ) {
+    // assert succ != null;
+    final Node<E> pred = succ.prev;
+    final Node<E> newNode = new Node<>(pred, e, succ);
+    succ.prev = newNode;
+    if (pred == null)
+        first = newNode;
+    else
+        pred.next = newNode;
+    size++;
+    modCount++;
+}
+往某个节点的前面插入
+
+2.linkLast(E e)
+/**
+ * Links e as last element.
+ */
+void linkLast(E e) {
+    final Node<E> l = last;
+    final Node<E> newNode = new Node<>(l, e, null);
+    last = newNode;
+    if (l == null)
+        first = newNode;
+    else
+        l.next = newNode;
+    size++;
+    modCount++;
+}
+往list结尾插入节点
+
+3.add(int index, E element)
+public void add(int index, E element) {
+    checkPositionIndex(index);
+
+    if (index == size)
+        linkLast(element);
+    else
+        linkBefore(element, node(index));
+}
+插入一个元素，如果往结尾插，调用插入结尾方法，如果坐标节点不是结尾，调用插入中间方法（判断坐标节点是开头，插入开头）
+（坐标节点就是E） 
+
+4.删除一个节点
+/**
+ * Unlinks non-null node x.
+ */
+E unlink(Node<E> x) {
+    // assert x != null;
+    final E element = x.item;
+    final Node<E> next = x.next;
+    final Node<E> prev = x.prev;
+
+    if (prev == null) {
+        first = next;
+    } else {
+        prev.next = next;
+        x.prev = null;
+    }
+
+    if (next == null) {
+        last = prev;
+    } else {
+        next.prev = prev;
+        x.next = null;
+    }
+
+    x.item = null;
+    size--;
+    modCount++;
+    return element;
+}
+如果此节点是开头，则定义下一个为开头，删除这个一个；如果不是开头，重新定义要删除元素的上一个元素的下一个元素为要删除元素的下一个元素,删除这一个，
+如果要删除元素是尾节点，则要删除元素的上一个元素为尾节点。
+
+5.remove(int index)
+public E remove(int index) {
+    checkElementIndex(index);
+    return unlink(node(index));
+}
+判断是否下标越界，然后删除要删除的元素
+
+6.indexOf(Object o)
+public int indexOf(Object o) {
+    int index = 0;
+    if (o == null) {
+        for (Node<E> x = first; x != null; x = x.next) {
+            if (x.item == null)
+                return index;
+            index++;
+        }
+    } else {
+        for (Node<E> x = first; x != null; x = x.next) {
+            if (o.equals(x.item))
+                return index;
+            index++;
+        }
+    }
+    return -1;
+}
+Returns the index of the first occurrence of the specified element in this list, or -1 if this list does not contain the element. 
+ 
+7.lastIndexOf(Object o)
+Returns the index of the last occurrence of the specified element in this list, or -1 if this list does not contain the element.
+ 
+8.peek()
+public E peek() {
+    final Node<E> f = first;
+    return (f == null) ? null : f.item;
+}
+Retrieves, but does not remove, the head (first element) of this list.(取出)
+
+9.element()
+public E element() {
+    return getFirst();
+}
+same as 8
+
+10.poll()
+public E poll() {
+    final Node<E> f = first;
+    return (f == null) ? null : unlinkFirst(f);
+}
+Retrieves and removes the head (first element) of this list.
+
+11.remove()
+public E remove() {
+    return removeFirst();
+}
+Retrieves and removes the head (first element) of this list.
+
+12.offer(E e)
+public boolean offer(E e) {
+    return add(e);
+}
+Adds the specified element as the tail (last element) of this list.
+
+13.offerFirst(E e)
+public boolean offerFirst(E e) {
+    addFirst(e);
+    return true;
+}
+Inserts the specified element at the front of this list.
+
+14.offerLast(E e)
+public boolean offerLast(E e) {
+    addLast(e);
+    return true;
+}
+Inserts the specified element at the end of this list.
+
+15.peekLast()
+ public E peekLast() {
+    final Node<E> l = last;
+    return (l == null) ? null : l.item;
+}
+Retrieves, but does not remove, the last element of this list,or returns null if this list is empty.
+
+16.pollLast()
+public E pollLast() {
+    final Node<E> l = last;
+    return (l == null) ? null : unlinkLast(l);
+}
+Retrieves and removes the last element of this list,or returns null if this list is empty.
+
+17.push(E e)
+public void push(E e) {
+    addFirst(e);
+}
+Pushes an element onto the stack represented by this list.  In other words, inserts the element at the front of this list.
+
+18.pop()
+public E pop() {
+    return removeFirst();
+}
+Pops an element from the stack represented by this list.  In other words,removes and returns the first element of this list.
